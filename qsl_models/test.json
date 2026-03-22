@@ -1,0 +1,83 @@
+{
+  "bg_path": "/home/ros/Scrivania/qsl2/qsl_pre2.png",
+  "campi": [
+    {
+      "tipo": "db",
+      "valore": "call",
+      "x_pct": 0.7259893160172867,
+      "y_pct": 0.26869576314446125,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": false,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "qso_date",
+      "x_pct": 0.7525612230934378,
+      "y_pct": 0.39950229709035195,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": false,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "time_on",
+      "x_pct": 0.7876361404339572,
+      "y_pct": 0.463310362429811,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": true,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "mode",
+      "x_pct": 0.7940133981322337,
+      "y_pct": 0.5159520163348645,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": true,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "band",
+      "x_pct": 0.8003906558305097,
+      "y_pct": 0.58135528330781,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": true,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "rst_sent",
+      "x_pct": 0.8014535321135563,
+      "y_pct": 0.6355921388463499,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": true,
+      "adatta_max_w": 0.35
+    },
+    {
+      "tipo": "db",
+      "valore": "name",
+      "x_pct": 0.05,
+      "y_pct": 0.23679173047473176,
+      "font_nome": "Arial",
+      "dimensione": 50,
+      "colore": "#000000",
+      "adatta_w": true,
+      "adatta_max_w": 0.35
+    }
+  ],
+  "rettangoli": []
+}

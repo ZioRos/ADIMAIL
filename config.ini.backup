@@ -1,0 +1,25 @@
+[SMTP]
+server = inserire.smtp
+port = 587
+user = utente@dominio.xxx
+password = 
+
+[UI]
+tema = scuro
+
+[MODULES]
+creatore = creatore_tema.py
+records = qsl_records_tema.py
+editor = qsl_editor2_tema.py
+config = config_editor.py
+config_editorxxxx = /home/ros/Scrivania/qsl_sou/config_editor.py
+
+[PROGRAM_PATHS]
+jtdx = 
+wsjtx = /home/ros/.local/share/WSJT-X/wsjtx_log.adi
+mhsv = 
+decodium = /home/ros/Scrivania/wsjtx_log.adi
+
+[DEFAULTS]
+modello_json = test.json
+
