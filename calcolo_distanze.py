@@ -54,6 +54,12 @@ class GridDistanceCalculator:
         self.map_offset_y = 0
         self.map_locators = []  # Locator estratti dalla mappa
         
+        # Variabili per ordinamento
+        self.sort_var = tk.StringVar(value="callsign")
+        self.min_distance_var = tk.StringVar(value="--")
+        self.max_distance_var = tk.StringVar(value="--")
+        self.station_count_var = tk.StringVar(value="0")
+        
         self._load_config()
         self._create_widgets()
         self._load_grids()
@@ -67,111 +73,180 @@ class GridDistanceCalculator:
         # Configura grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(4, weight=1)
+        main_frame.columnconfigure(1, weight=3)  # Mappa più grande
+        main_frame.rowconfigure(3, weight=1)
         
         # Titolo
         title_label = ttk.Label(main_frame, text="Calcolatore Distanze QSL", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+                               font=("Arial", 14, "bold"))
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
         
-        # Frame per input
-        input_frame = ttk.Frame(main_frame)
-        input_frame.grid(row=1, column=0, columnspan=3, pady=10, sticky=(tk.W, tk.E))
+        # Frame per input con griglia organizzata
+        input_frame = ttk.LabelFrame(main_frame, text="Impostazioni", padding="8")
+        input_frame.grid(row=1, column=0, columnspan=2, pady=(0, 8), sticky=(tk.W, tk.E))
         
-        # Input grid locator
-        ttk.Label(input_frame, text="Il tuo Grid Locator:").pack(side=tk.LEFT, padx=(0, 10))
-        grid_entry = ttk.Entry(input_frame, textvariable=self.my_grid_var, width=15)
-        grid_entry.pack(side=tk.LEFT, padx=(0, 20))
+        # Griglia per input
+        # Riga 0: Grid Locator
+        ttk.Label(input_frame, text="Il tuo Grid Locator:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10), pady=5)
+        grid_entry = ttk.Entry(input_frame, textvariable=self.my_grid_var, width=20)
+        grid_entry.grid(row=0, column=1, sticky=tk.W, padx=(0, 20), pady=5)
         
-        # Unità di distanza
-        ttk.Label(input_frame, text="Unità:").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Radiobutton(input_frame, text="Km", variable=self.distance_unit_var, value="km").pack(side=tk.LEFT)
-        ttk.Radiobutton(input_frame, text="Miles", variable=self.distance_unit_var, value="miles").pack(side=tk.LEFT, padx=(0, 20))
+        # Riga 1: Unità di distanza
+        ttk.Label(input_frame, text="Unità di misura:").grid(row=1, column=0, sticky=tk.W, padx=(0, 10), pady=5)
+        unit_frame = ttk.Frame(input_frame)
+        unit_frame.grid(row=1, column=1, sticky=tk.W, pady=5)
+        ttk.Radiobutton(unit_frame, text="Km", variable=self.distance_unit_var, value="km").pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Radiobutton(unit_frame, text="Miles", variable=self.distance_unit_var, value="miles").pack(side=tk.LEFT)
         
-        # Checkbox per opzioni mappa
-        ttk.Checkbutton(input_frame, text="Mostra Mappa", 
+        # Riga 2: Opzioni mappa
+        ttk.Label(input_frame, text="Opzioni mappa:").grid(row=2, column=0, sticky=tk.W, padx=(0, 10), pady=5)
+        options_frame = ttk.Frame(input_frame)
+        options_frame.grid(row=2, column=1, sticky=tk.W, pady=5)
+        ttk.Checkbutton(options_frame, text="Mostra Mappa", 
                        variable=self.show_map_var).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Checkbutton(input_frame, text="Mostra Tutti i Collegamenti", 
-                       variable=self.show_all_connections_var).pack(side=tk.LEFT, padx=(0, 20))
+        ttk.Checkbutton(options_frame, text="Mostra Tutti i Collegamenti", 
+                       variable=self.show_all_connections_var).pack(side=tk.LEFT)
         
-        # Pulsanti
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, columnspan=3, pady=10)
+        # Pulsanti organizzati in griglia
+        button_frame = ttk.LabelFrame(main_frame, text="Azioni", padding="8")
+        button_frame.grid(row=2, column=0, columnspan=2, pady=(0, 8), sticky=(tk.W, tk.E))
         
-        ttk.Button(button_frame, text="Calcola Distanze", 
+        # Prima riga di pulsanti (calcolo e configurazione)
+        button_row1 = ttk.Frame(button_frame)
+        button_row1.grid(row=0, column=0, pady=(0, 5))
+        
+        ttk.Button(button_row1, text="📏 Calcola Distanze", 
                   command=self.calculate_distances).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Carica Grid dal Database", 
+        ttk.Button(button_row1, text="🗄️ Carica Grid DB", 
                   command=self.load_my_grid_from_db).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Salva Config", 
+        ttk.Button(button_row1, text="💾 Salva Config", 
                   command=self.save_config).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Carica Mappa", 
-                  command=self.load_map_image).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Estrai Locator Mappa", 
-                  command=self.extract_locators_from_map).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Info Mappa", 
-                  command=self.show_map_info).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Pulisci Risultati", 
+        ttk.Button(button_row1, text="🗑️ Pulisci Risultati", 
                   command=self.clear_results).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Salva Mappa", 
+        
+        # Seconda riga di pulsanti (mappa)
+        button_row2 = ttk.Frame(button_frame)
+        button_row2.grid(row=1, column=0, pady=5)
+        
+        ttk.Button(button_row2, text="🗺️ Carica Mappa", 
+                  command=self.load_map_image).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_row2, text="🔍 Estrai Locator", 
+                  command=self.extract_locators_from_map).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_row2, text="ℹ️ Info Mappa", 
+                  command=self.show_map_info).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_row2, text="💾 Salva Mappa", 
                   command=self.save_map).pack(side=tk.LEFT, padx=5)
         
         # Frame per risultati e mappa
         results_frame = ttk.Frame(main_frame)
-        results_frame.grid(row=3, column=0, columnspan=3, pady=10, sticky=(tk.W, tk.E, tk.N, tk.S))
-        results_frame.columnconfigure(0, weight=1)
-        results_frame.columnconfigure(1, weight=1)
+        results_frame.grid(row=3, column=0, columnspan=2, pady=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+        results_frame.columnconfigure(0, weight=1)  # Lista più piccola
+        results_frame.columnconfigure(1, weight=3)  # Mappa più grande
         results_frame.rowconfigure(0, weight=1)
         
         # Area risultati (testo)
-        text_frame = ttk.Frame(results_frame)
+        text_frame = ttk.LabelFrame(results_frame, text="Elenco Stazioni", padding="8")
         text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
-        
-        ttk.Label(text_frame, text="Risultati:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(1, weight=1)
         
         # Frame per la lista e il dettaglio
         list_frame = ttk.Frame(text_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True)
+        list_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(1, weight=1)
+        
+        # Frame per controlli ordinamento
+        sort_frame = ttk.Frame(list_frame)
+        sort_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        
+        ttk.Label(sort_frame, text="Ordina per:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.sort_var = tk.StringVar(value="callsign")
+        sort_options = [
+            ("Callsign", "callsign"),
+            ("Grid", "grid"),
+            ("Distanza", "distance"),
+            ("QTH", "qth")
+        ]
+        
+        for text, value in sort_options:
+            ttk.Radiobutton(sort_frame, text=text, variable=self.sort_var, 
+                           value=value, command=self.sort_stations).pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(sort_frame, text="🔄", command=self.sort_stations, width=3).pack(side=tk.LEFT, padx=(5, 0))
         
         # Lista delle stazioni (selezionabili)
-        self.stations_listbox = tk.Listbox(list_frame, height=15)
-        self.stations_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.stations_listbox = tk.Listbox(list_frame, height=10, font=("Courier", 9))
+        self.stations_listbox.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.stations_listbox.bind('<<ListboxSelect>>', self.on_station_select)
         
         # Scrollbar per la lista
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.stations_listbox.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
         self.stations_listbox.config(yscrollcommand=scrollbar.set)
         
         # Area dettagli stazione selezionata
-        detail_frame = ttk.Frame(text_frame)
-        detail_frame.pack(fill=tk.X, pady=(10, 0))
+        detail_frame = ttk.LabelFrame(text_frame, text="Dettagli Stazione", padding="3")
+        detail_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        detail_frame.columnconfigure(0, weight=1)
         
-        ttk.Label(detail_frame, text="Dettagli Stazione:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-        self.detail_text = tk.Text(detail_frame, height=5, width=60)
-        self.detail_text.pack(fill=tk.X)
+        self.detail_text = tk.Text(detail_frame, height=3, width=60, font=("Courier", 9), wrap=tk.WORD)
+        self.detail_text.grid(row=0, column=0, sticky=(tk.W, tk.E))
         self.detail_text.config(state=tk.DISABLED)
         
-        # Area mappa
-        self.map_frame = ttk.Frame(results_frame)
-        self.map_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        # Scrollbar per dettagli
+        detail_scrollbar = ttk.Scrollbar(detail_frame, orient=tk.VERTICAL, command=self.detail_text.yview)
+        detail_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.detail_text.config(yscrollcommand=detail_scrollbar.set)
         
-        ttk.Label(self.map_frame, text="Mappa Distanze:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
+        # Area statistiche
+        stats_frame = ttk.LabelFrame(text_frame, text="Statistiche", padding="3")
+        stats_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        stats_frame.columnconfigure(1, weight=1)
+        
+        # Distanza minima
+        ttk.Label(stats_frame, text="Min:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5), pady=1)
+        self.min_distance_var = tk.StringVar(value="--")
+        self.min_distance_label = ttk.Label(stats_frame, textvariable=self.min_distance_var, 
+                                           font=("Courier", 9, "bold"))
+        self.min_distance_label.grid(row=0, column=1, sticky=tk.W, pady=1)
+        
+        # Distanza massima
+        ttk.Label(stats_frame, text="Max:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5), pady=1)
+        self.max_distance_var = tk.StringVar(value="--")
+        self.max_distance_label = ttk.Label(stats_frame, textvariable=self.max_distance_var, 
+                                           font=("Courier", 9, "bold"))
+        self.max_distance_label.grid(row=1, column=1, sticky=tk.W, pady=1)
+        
+        # Numero di stazioni
+        ttk.Label(stats_frame, text="Count:").grid(row=2, column=0, sticky=tk.W, padx=(0, 5), pady=1)
+        self.station_count_var = tk.StringVar(value="0")
+        ttk.Label(stats_frame, textvariable=self.station_count_var, 
+                 font=("Courier", 9)).grid(row=2, column=1, sticky=tk.W, pady=1)
+        
+        # Area mappa
+        self.map_frame = ttk.LabelFrame(results_frame, text="Mappa Distanze", padding="10")
+        self.map_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        self.map_frame.columnconfigure(0, weight=1)
+        self.map_frame.rowconfigure(2, weight=1)
         
         # Frame per controlli zoom
         zoom_frame = ttk.Frame(self.map_frame)
-        zoom_frame.pack(fill=tk.X, pady=(5, 0))
+        zoom_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         
-        ttk.Button(zoom_frame, text="Zoom -", command=self.zoom_out, width=8).pack(side=tk.LEFT, padx=2)
+        ttk.Button(zoom_frame, text="🔍➖", command=self.zoom_out, width=10).pack(side=tk.LEFT, padx=2)
         ttk.Label(zoom_frame, text="Zoom:").pack(side=tk.LEFT, padx=(10, 2))
         self.zoom_label = ttk.Label(zoom_frame, text="100%")
         self.zoom_label.pack(side=tk.LEFT, padx=2)
-        ttk.Button(zoom_frame, text="Zoom +", command=self.zoom_in, width=8).pack(side=tk.LEFT, padx=2)
-        ttk.Button(zoom_frame, text="Reset", command=self.reset_zoom, width=8).pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Button(zoom_frame, text="🔍➕", command=self.zoom_in, width=10).pack(side=tk.LEFT, padx=2)
+        ttk.Button(zoom_frame, text="🔄 Reset", command=self.reset_zoom, width=10).pack(side=tk.LEFT, padx=(10, 2))
         
         # Canvas con scrollbar per mappa zoomabile
         canvas_frame = ttk.Frame(self.map_frame)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        canvas_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
         
         self.map_canvas = tk.Canvas(canvas_frame, bg='#1E3A5F', width=600, height=400)
         
@@ -185,9 +260,6 @@ class GridDistanceCalculator:
         v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        canvas_frame.grid_rowconfigure(0, weight=1)
-        canvas_frame.grid_columnconfigure(0, weight=1)
-        
         # Mouse events for panning
         self.map_canvas.bind("<Button-1>", self.on_map_click)
         self.map_canvas.bind("<B1-Motion>", self.on_map_drag)
@@ -196,7 +268,7 @@ class GridDistanceCalculator:
         # Status bar
         self.status_var = tk.StringVar(value="Pronto")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        status_bar.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
     
     def maidenhead_to_latlon(self, grid):
         """Converte Maidenhead grid in coordinate lat/lon"""
@@ -309,6 +381,77 @@ class GridDistanceCalculator:
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile caricare il grid locator:\n{e}")
     
+    def sort_stations(self):
+        """Ordina la lista delle stazioni in base al criterio selezionato"""
+        if not self.all_stations_coords:
+            return
+        
+        sort_by = self.sort_var.get()
+        unit = self.distance_unit_var.get()
+        
+        # Crea una copia della lista per l'ordinamento
+        sortable_stations = []
+        for i, (call, grid, lat, lon, distance_km, qth) in enumerate(self.all_stations_coords):
+            # Converti distanza nell'unità corrente
+            distance_display = distance_km if unit == "km" else distance_km * 0.621371
+            
+            # Determina il valore di ordinamento
+            if sort_by == "callsign":
+                sort_value = call.lower()
+            elif sort_by == "grid":
+                sort_value = grid.lower()
+            elif sort_by == "distance":
+                sort_value = distance_display
+            elif sort_by == "qth":
+                sort_value = qth.lower() if qth else ""
+            else:
+                sort_value = call.lower()
+            
+            sortable_stations.append((sort_value, i, call, grid, distance_display, qth))
+        
+        # Ordina la lista
+        sortable_stations.sort(key=lambda x: x[0])
+        
+        # Ricostruisci la lista visualizzata
+        self.stations_listbox.delete(0, tk.END)
+        unit_label = "km" if unit == "km" else "mi"
+        
+        for sort_value, original_index, call, grid, distance_display, qth in sortable_stations:
+            list_entry = f"{call:<12} {grid:<8} {distance_display:8.2f} {unit_label}"
+            self.stations_listbox.insert(tk.END, list_entry)
+        
+        # Aggiorna le statistiche
+        self.update_statistics()
+    
+    def update_statistics(self):
+        """Aggiorna le statistiche delle distanze"""
+        if not self.all_stations_coords:
+            self.min_distance_var.set("--")
+            self.max_distance_var.set("--")
+            self.station_count_var.set("0")
+            return
+        
+        unit = self.distance_unit_var.get()
+        distances = []
+        
+        for call, grid, lat, lon, distance_km, qth in self.all_stations_coords:
+            # Converti distanza nell'unità corrente
+            distance_display = distance_km if unit == "km" else distance_km * 0.621371
+            distances.append(distance_display)
+        
+        if distances:
+            min_dist = min(distances)
+            max_dist = max(distances)
+            unit_label = "km" if unit == "km" else "mi"
+            
+            self.min_distance_var.set(f"{min_dist:.2f} {unit_label}")
+            self.max_distance_var.set(f"{max_dist:.2f} {unit_label}")
+            self.station_count_var.set(str(len(distances)))
+        else:
+            self.min_distance_var.set("--")
+            self.max_distance_var.set("--")
+            self.station_count_var.set("0")
+    
     def calculate_distances(self):
         """Calcola le distanze per tutte le stazioni usando il tuo locator come riferimento"""
         my_grid = self.my_grid_var.get().strip()
@@ -365,11 +508,18 @@ class GridDistanceCalculator:
         if station_count > 0:
             self.status_var.set(f"Calcolate distanze da {my_grid} per {station_count} stazioni")
             
+            # Aggiorna le statistiche
+            self.update_statistics()
+            
+            # Applica l'ordinamento corrente
+            self.sort_stations()
+            
             # Disegna la mappa se richiesto
             if self.show_map_var.get():
                 self.draw_world_map(self.my_lat, self.my_lon, stations_with_coords)
         else:
             self.status_var.set("Nessuna distanza calcolata")
+            self.update_statistics()
     
     def clear_results(self):
         """Pulisce l'area dei risultati"""
@@ -380,6 +530,9 @@ class GridDistanceCalculator:
         self.map_canvas.delete("all")
         self.selected_station = None
         self.all_stations_coords = []
+        
+        # Resetta le statistiche
+        self.update_statistics()
         self.status_var.set("Risultati puliti")
     
     def draw_world_map(self, my_lat, my_lon, stations):
@@ -636,6 +789,10 @@ class GridDistanceCalculator:
         # Ridisegna la mappa
         if self.show_map_var.get():
             self.draw_world_map(my_lat, my_lon, self.all_stations_coords)
+        
+        # Aggiorna le statistiche dopo l'aggiunta
+        self.update_statistics()
+        self.sort_stations()
     
     def show_map_info(self):
         """Mostra informazioni sulle dimensioni della mappa"""
