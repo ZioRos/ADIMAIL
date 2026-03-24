@@ -16,6 +16,8 @@ import threading
 import configparser
 import tkinter as tk
 from tkinter import ttk, messagebox
+import subprocess
+import platform
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
 
@@ -670,6 +672,9 @@ class ConfigEditor:
         
         # Sezione Files ADIF
         self._crea_sezione_collassabile(p, "FILES ADIF", "adif")
+        
+        # Sezione Installazione Moduli
+        self._crea_sezione_collassabile(p, "INSTALLAZIONE MODULI", "install")
 
     # ── Sfoglia path ──────────────────────────────────────────────────────────
     def _sfoglia_path(self, var: tk.StringVar):
@@ -742,6 +747,8 @@ class ConfigEditor:
                     self._popola_sezione_moduli(content_frame)
                 elif section_id == "adif":
                     self._popola_sezione_adif(content_frame)
+                elif section_id == "install":
+                    self._popola_sezione_installazione(content_frame)
         
         arrow_btn.bind("<Button-1>", toggle_section)
         title_label.bind("<Button-1>", toggle_section)
@@ -812,6 +819,295 @@ class ConfigEditor:
                       relief=tk.FLAT, cursor="hand2",
                       command=lambda v=var: self._sfoglia_path(v)
                       ).pack(side="left", padx=3)
+    
+    def _popola_sezione_installazione(self, parent):
+        """Popola la sezione installazione moduli OCR"""
+        # Container principale
+        install_container = tk.Frame(parent, bg=P["bg_panel"])
+        install_container.pack(fill="x")
+        
+        # Info OCR
+        info_frame = tk.Frame(install_container, bg=P["bg_alt"],
+                             highlightthickness=1,
+                             highlightbackground=P["sep"])
+        info_frame.pack(fill="x", pady=(0, 12))
+        
+        tk.Label(info_frame,
+                 text="🔍  MODULI OCR PER ESTRAZIONE LOCATOR\n\n"
+                      "Per abilitare l'estrazione automatica dei locator Maidenhead\n"
+                      "dalle immagini delle mappe, sono necessari due componenti:\n\n"
+                      "1. Tesseract OCR (motore di riconoscimento testo)\n"
+                      "2. Pytesseract (interfaccia Python per Tesseract)\n\n"
+                      "Questi moduli permettono di 'leggere' i locator scritti\n"
+                      "sulle immagini delle mappe e calcolare le distanze automaticamente.",
+                 bg=P["bg_alt"], fg=P["fg"],
+                 font=("Courier", 9), justify="left", anchor="w").pack(
+            padx=12, pady=12)
+        
+        # Stato installazione
+        status_frame = tk.Frame(install_container, bg=P["bg_panel"])
+        status_frame.pack(fill="x", pady=(0, 12))
+        
+        tk.Label(status_frame, text="STATO INSTALLAZIONE:",
+                bg=P["bg_panel"], fg=P["accent"],
+                font=("Courier", 10, "bold")).pack(anchor="w")
+        
+        # Controlla Tesseract
+        self._lbl_tesseract_status = tk.Label(status_frame, text="Controllo Tesseract...",
+                                            bg=P["bg_panel"], fg=P["fg_dim"],
+                                            font=("Courier", 9))
+        self._lbl_tesseract_status.pack(anchor="w", padx=(20, 0), pady=2)
+        
+        # Controlla Pytesseract
+        self._lbl_pytesseract_status = tk.Label(status_frame, text="Controllo Pytesseract...",
+                                               bg=P["bg_panel"], fg=P["fg_dim"],
+                                               font=("Courier", 9))
+        self._lbl_pytesseract_status.pack(anchor="w", padx=(20, 0), pady=2)
+        
+        # Bottoni installazione
+        btn_frame = tk.Frame(install_container, bg=P["bg_panel"])
+        btn_frame.pack(fill="x", pady=(0, 8))
+        
+        # Pulsante installazione Tesseract
+        self._btn_install_tesseract = tk.Button(
+            btn_frame, text="📦 Installa Tesseract OCR",
+            bg=P["btn_test"], fg=P["fg_bright"],
+            activebackground="#2a7a3a", activeforeground="#fff",
+            relief=tk.FLAT, font=("Courier", 9, "bold"),
+            cursor="hand2", padx=12, pady=6,
+            command=self._install_tesseract)
+        self._btn_install_tesseract.pack(side="left", padx=(0, 8))
+        
+        # Pulsante installazione Pytesseract
+        self._btn_install_pytesseract = tk.Button(
+            btn_frame, text="🐍 Installa Pytesseract",
+            bg=P["btn_test"], fg=P["fg_bright"],
+            activebackground="#2a7a3a", activeforeground="#fff",
+            relief=tk.FLAT, font=("Courier", 9, "bold"),
+            cursor="hand2", padx=12, pady=6,
+            command=self._install_pytesseract)
+        self._btn_install_pytesseract.pack(side="left", padx=(0, 8))
+        
+        # Pulsante verifica
+        tk.Button(btn_frame, text="🔄 Verifica Installazione",
+                 bg=P["accent"], fg="#fff",
+                 activebackground="#3a7e9e", activeforeground="#fff",
+                 relief=tk.FLAT, font=("Courier", 9, "bold"),
+                 cursor="hand2", padx=12, pady=6,
+                 command=self._verifica_installazione_ocr).pack(side="left")
+        
+        # Area output comandi
+        output_frame = tk.Frame(install_container, bg=P["bg_panel"])
+        output_frame.pack(fill="x", pady=(8, 0))
+        
+        tk.Label(output_frame, text="OUTPUT COMANDI:",
+                bg=P["bg_panel"], fg=P["accent"],
+                font=("Courier", 10, "bold")).pack(anchor="w")
+        
+        self._text_output = tk.Text(output_frame, height=8, width=70,
+                                   bg=P["bg_input"], fg=P["fg_bright"],
+                                   font=("Courier", 8), wrap=tk.WORD)
+        _style_entry(self._text_output)
+        self._text_output.pack(fill="x", pady=4)
+        
+        # Scrollbar per il testo
+        scrollbar = ttk.Scrollbar(output_frame, orient="vertical", 
+                                command=self._text_output.yview)
+        scrollbar.pack(side="right", fill="y")
+        self._text_output.configure(yscrollcommand=scrollbar.set)
+        
+        # Verifica installazione all'avvio
+        self._verifica_installazione_ocr()
+    
+    def _verifica_installazione_ocr(self):
+        """Verifica lo stato di installazione dei moduli OCR"""
+        self._clear_output()
+        self._append_output("🔍 Verifica installazione moduli OCR...\n")
+        
+        # Verifica Tesseract
+        try:
+            result = subprocess.run(['tesseract', '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                version = result.stdout.split('\n')[0] if result.stdout else "Installato"
+                self._lbl_tesseract_status.config(
+                    text=f"✅ Tesseract: {version}", fg=P["green"])
+                self._btn_install_tesseract.config(state=tk.DISABLED)
+                self._append_output(f"✅ Tesseract OCR trovato: {version}\n")
+            else:
+                self._lbl_tesseract_status.config(
+                    text="❌ Tesseract: Non installato", fg=P["red"])
+                self._btn_install_tesseract.config(state=tk.NORMAL)
+                self._append_output("❌ Tesseract OCR non trovato\n")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            self._lbl_tesseract_status.config(
+                text="❌ Tesseract: Non installato", fg=P["red"])
+            self._btn_install_tesseract.config(state=tk.NORMAL)
+            self._append_output("❌ Tesseract OCR non trovato\n")
+        
+        # Verifica Pytesseract
+        try:
+            import pytesseract
+            self._lbl_pytesseract_status.config(
+                text="✅ Pytesseract: Installato", fg=P["green"])
+            self._btn_install_pytesseract.config(state=tk.DISABLED)
+            self._append_output("✅ Pytesseract installato correttamente\n")
+        except ImportError:
+            self._lbl_pytesseract_status.config(
+                text="❌ Pytesseract: Non installato", fg=P["red"])
+            self._btn_install_pytesseract.config(state=tk.NORMAL)
+            self._append_output("❌ Pytesseract non installato\n")
+        except Exception as e:
+            self._lbl_pytesseract_status.config(
+                text=f"⚠️ Pytesseract: Errore - {str(e)}", fg=P["yellow"])
+            self._btn_install_pytesseract.config(state=tk.NORMAL)
+            self._append_output(f"⚠️ Errore Pytesseract: {e}\n")
+        
+        self._append_output("\n🏁 Verifica completata!")
+    
+    def _install_tesseract(self):
+        """Installa Tesseract OCR in base al sistema operativo"""
+        self._clear_output()
+        self._append_output("📦 Inizio installazione Tesseract OCR...\n")
+        
+        system = platform.system().lower()
+        
+        if system == "linux":
+            # Prova con apt (Debian/Ubuntu)
+            if self._check_command_exists("apt"):
+                self._append_output("🐧 Sistema Linux rilevato, utilizzo apt...")
+                self._run_command_with_sudo(["apt", "update"], "Aggiornamento repository...")
+                self._run_command_with_sudo(["apt", "install", "-y", "tesseract-ocr"], 
+                                          "Installazione Tesseract OCR...")
+            elif self._check_command_exists("dnf"):
+                self._append_output("🐧 Sistema Linux rilevato, utilizzo dnf...")
+                self._run_command_with_sudo(["dnf", "install", "-y", "tesseract"], 
+                                          "Installazione Tesseract OCR...")
+            elif self._check_command_exists("yum"):
+                self._append_output("🐧 Sistema Linux rilevato, utilizzo yum...")
+                self._run_command_with_sudo(["yum", "install", "-y", "tesseract"], 
+                                          "Installazione Tesseract OCR...")
+            else:
+                self._append_output("❌ Gestore pacchetti non riconosciuto.\n"
+                                   "Installa manualmente Tesseract OCR:\n"
+                                   "Ubuntu/Debian: sudo apt-get install tesseract-ocr\n"
+                                   "Fedora: sudo dnf install tesseract\n"
+                                   "CentOS: sudo yum install tesseract")
+        
+        elif system == "windows":
+            self._append_output("🪟 Sistema Windows rilevato.\n"
+                              "Per installare Tesseract OCR su Windows:\n"
+                              "1. Scarica da: https://github.com/UB-Mannheim/tesseract/wiki\n"
+                              "2. Esegui l'installer\n"
+                              "3. Assicurati di aggiungere Tesseract al PATH di sistema")
+        
+        elif system == "darwin":
+            self._append_output("🍎 Sistema macOS rilevato, utilizzo Homebrew...")
+            if self._check_command_exists("brew"):
+                self._run_command(["brew", "install", "tesseract"], 
+                                "Installazione Tesseract OCR...")
+            else:
+                self._append_output("❌ Homebrew non trovato.\n"
+                                   "Installa Homebrew con: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
+        
+        else:
+            self._append_output(f"❌ Sistema operativo {system} non supportato automaticamente.")
+        
+        # Verifica dopo l'installazione
+        self._append_output("\n🔄 Verifica post-installazione...")
+        self.root.after(2000, self._verifica_installazione_ocr)
+    
+    def _install_pytesseract(self):
+        """Installa Pytesseract"""
+        self._clear_output()
+        self._append_output("🐍 Inizio installazione Pytesseract...\n")
+        
+        try:
+            # Prova con pip
+            self._run_command([sys.executable, "-m", "pip", "install", "pytesseract"], 
+                            "Installazione Pytesseract con pip...")
+            
+            # Se fallisce, prova con --break-system-packages
+            self._append_output("⚠️ Tentativo con --break-system-packages...")
+            self._run_command([sys.executable, "-m", "pip", "install", "--break-system-packages", "pytesseract"], 
+                            "Installazione Pytesseract con --break-system-packages...")
+            
+        except Exception as e:
+            self._append_output(f"❌ Errore durante l'installazione: {e}\n"
+                              f"Prova manualmente:\n"
+                              f"pip install pytesseract\n"
+                              f"oppure:\n"
+                              f"pip install --break-system-packages pytesseract")
+        
+        # Verifica dopo l'installazione
+        self._append_output("\n🔄 Verifica post-installazione...")
+        self.root.after(2000, self._verifica_installazione_ocr)
+    
+    def _check_command_exists(self, command):
+        """Verifica se un comando esiste nel sistema"""
+        try:
+            subprocess.run(['which', command], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+    
+    def _run_command(self, cmd, description=""):
+        """Esegue un comando e mostra l'output"""
+        if description:
+            self._append_output(f"📋 {description}")
+        
+        try:
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                                     stderr=subprocess.STDOUT, text=True,
+                                     universal_newlines=True)
+            
+            # Leggi l'output in tempo reale
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    self._append_output(output.strip())
+            
+            return_code = process.poll()
+            if return_code == 0:
+                self._append_output("✅ Completato con successo!")
+            else:
+                self._append_output(f"❌ Errore (codice: {return_code})")
+                
+        except Exception as e:
+            self._append_output(f"❌ Errore esecuzione: {e}")
+    
+    def _run_command_with_sudo(self, cmd, description=""):
+        """Esegue un comando con sudo"""
+        if description:
+            self._append_output(f"📋 {description}")
+        
+        try:
+            # Su Linux, usa gksudo/kdesudo se disponibili, altrimenti sudo normale
+            if self._check_command_exists("gksudo"):
+                cmd_with_sudo = ["gksudo"] + cmd
+            elif self._check_command_exists("kdesudo"):
+                cmd_with_sudo = ["kdesudo"] + cmd
+            else:
+                cmd_with_sudo = ["sudo"] + cmd
+                self._append_output("⚠️ Verrà richiesta la password di sudo...")
+            
+            self._run_command(cmd_with_sudo, "")
+            
+        except Exception as e:
+            self._append_output(f"❌ Errore esecuzione sudo: {e}")
+    
+    def _clear_output(self):
+        """Pulisce l'area di output"""
+        self._text_output.delete(1.0, tk.END)
+    
+    def _append_output(self, text):
+        """Aggiunge testo all'area di output"""
+        self._text_output.insert(tk.END, text + "\n")
+        self._text_output.see(tk.END)
+        self._text_output.update_idletasks()
+        self.root.update_idletasks()
     
     def _get_moduli_config(self):
         """Carica la configurazione dei moduli dal file config"""
