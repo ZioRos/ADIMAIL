@@ -223,6 +223,8 @@ class ADIMAILLauncher:
         self.bg_photo    = None
         self.overlay_pil = None
         self._resize_job = None
+        self._moduli_extra_cache = {}  # Cache per moduli extra
+        self._tema_corrente = 'scuro'  # Tema corrente predefinito
 
         self._configura_finestra()
         self._costruisci_menu()
@@ -262,8 +264,12 @@ class ADIMAILLauncher:
         # ── Moduli ────────────────────────────────────────────────────────────
         m_mod = menu("  Moduli  ")
         
-        # Carica moduli dinamici dal config
-        moduli_extra = self._carica_moduli_extra()
+        # Carica moduli dinamici dal config o dalla cache
+        if hasattr(self, '_moduli_extra_cache') and self._moduli_extra_cache:
+            moduli_extra = self._moduli_extra_cache
+        else:
+            moduli_extra = self._carica_moduli_extra()
+            self._moduli_extra_cache = moduli_extra
         
         # Moduli standard
         m_mod.add_command(
@@ -448,55 +454,123 @@ class ADIMAILLauncher:
             fill="#405870",
             anchor="center")
 
-        # ── Badge moduli (4 voci, cliccabili) ────────────────────────────────
-        # Posizioni orizzontali simmetriche per 4 badge
+        # ── Badge moduli (dinamici, cliccabili) ─────────────────────────────────
+        # Posizioni orizzontali simmetriche per i badge
         badge_y  = h // 2 + 95
         badge_w  = 90    # semi-larghezza area cliccabile
         badge_h  = 44    # semi-altezza area cliccabile
 
-        moduli = [
+        # Moduli standard (sempre presenti)
+        moduli_standard = [
             ("📥", "Import ADIF",   SCRIPT_CREATORE),
             ("📧", "Email & Record", SCRIPT_RECORDS),
             ("🎨", "Editor QSL",    SCRIPT_EDITOR),
-            ("⚙",  "Config",        SCRIPT_CONFIG),   # ← NUOVO
+            ("⚙",  "Config",        SCRIPT_CONFIG),
         ]
-
-        n      = len(moduli)
-        spread = min(220, w // 2 - 60)   # metà-distanza totale
-        xs     = [cx + int(spread * (i - (n-1)/2) / ((n-1)/2))
+        
+        # Carica moduli extra dalla cache o dal config
+        if hasattr(self, '_moduli_extra_cache') and self._moduli_extra_cache:
+            moduli_extra_dict = self._moduli_extra_cache
+        else:
+            moduli_extra_dict = self._carica_moduli_extra()
+            self._moduli_extra_cache = moduli_extra_dict
+        
+        # Converti moduli extra in lista per badge
+        moduli_extra = []
+        for chiave, (nome_file, descrizione) in moduli_extra_dict.items():
+            # Estrai icona dalla descrizione o usa default
+            if "🔧" in descrizione:
+                icona = "🔧"
+            elif "📊" in descrizione:
+                icona = "📊"
+            elif "🗺️" in descrizione:
+                icona = "🗺️"
+            elif "📏" in descrizione:
+                icona = "📏"
+            else:
+                icona = "🔧"
+            
+            # Nome breve per il badge
+            nome_breve = chiave.replace("_", " ").title()
+            if len(nome_breve) > 12:
+                nome_breve = nome_breve[:10] + "..."
+            
+            moduli_extra.append((icona, nome_breve, nome_file))
+        
+        # Combina tutti i moduli
+        tutti_moduli = moduli_standard + moduli_extra
+        
+        # Limita a massimo 8 badge per motivi di spazio
+        if len(tutti_moduli) > 8:
+            tutti_moduli = tutti_moduli[:8]
+        
+        n      = len(tutti_moduli)
+        
+        # Adatta lo spread in base al numero di badge
+        if n <= 4:
+            spread = min(220, w // 2 - 60)
+        else:
+            # Per più di 4 badge, riduci lo spread e usa 2 righe
+            spread = min(300, w // 2 - 80)
+        
+        # Calcola posizioni X
+        if n <= 4:
+            # Una singola riga
+            xs = [cx + int(spread * (i - (n-1)/2) / ((n-1)/2) if n > 1 else cx)
                   for i in range(n)]
+            badge_positions = [(xs[i], badge_y) for i in range(n)]
+        else:
+            # Due righe per più di 4 badge
+            prima_riga = n // 2
+            seconda_riga = n - prima_riga
+            
+            # Prima riga
+            xs1 = [cx + int(spread * (i - (prima_riga-1)/2) / ((prima_riga-1)/2) if prima_riga > 1 else cx)
+                   for i in range(prima_riga)]
+            
+            # Seconda riga
+            xs2 = [cx + int(spread * (i - (seconda_riga-1)/2) / ((seconda_riga-1)/2) if seconda_riga > 1 else cx)
+                   for i in range(seconda_riga)]
+            
+            badge_positions = [(xs1[i], badge_y) for i in range(prima_riga)]
+            badge_positions += [(xs2[i], badge_y + 70) for i in range(seconda_riga)]
 
         self._badge_rects = []
 
-        for (ico, lbl, script), bx in zip(moduli, xs):
-            esiste = os.path.exists(script)
+        for (ico, lbl, script), (bx, by) in zip(tutti_moduli, badge_positions):
+            # Verifica esistenza file
+            if os.path.isabs(script):
+                esiste = os.path.exists(script)
+            else:
+                esiste = os.path.exists(os.path.join(BASE_DIR, script))
+            
             colore = self.ACCENT if esiste else "#3a4a5a"
             col_bg = "#0d2535" if esiste else "#0a1520"
 
-            # Sfondo rettangolo badge (hover simulato al click)
+            # Sfondo rettangolo badge
             rect = self.canvas.create_rectangle(
-                bx - badge_w, badge_y - badge_h,
-                bx + badge_w, badge_y + badge_h,
+                bx - badge_w, by - badge_h,
+                bx + badge_w, by + badge_h,
                 fill=col_bg, outline=colore if esiste else "#1a2a3a",
                 width=1)
 
             self.canvas.create_text(
-                bx, badge_y - 16,
+                bx, by - 16,
                 text=ico,
                 font=("", 18),
                 fill=colore,
                 anchor="center")
 
             self.canvas.create_text(
-                bx, badge_y + 8,
+                bx, by + 8,
                 text=lbl,
-                font=("Courier", 8, "bold" if esiste else "normal"),
+                font=("Courier", 7, "bold" if esiste else "normal"),
                 fill=colore,
                 anchor="center")
 
             stato = "▶ clicca" if esiste else "non trovato"
             self.canvas.create_text(
-                bx, badge_y + 24,
+                bx, by + 24,
                 text=stato,
                 font=("Courier", 7),
                 fill="#4a6a80" if esiste else "#5a2222",
@@ -504,8 +578,8 @@ class ADIMAILLauncher:
 
             # Registra area per hit-test
             self._badge_rects.append((
-                bx - badge_w, badge_y - badge_h,
-                bx + badge_w, badge_y + badge_h,
+                bx - badge_w, by - badge_h,
+                bx + badge_w, by + badge_h,
                 script))
 
     # ── Click sui badge canvas ────────────────────────────────────────────────
@@ -557,9 +631,104 @@ class ADIMAILLauncher:
                 "Verifica il percorso nella sezione PERCORSI SCRIPT del sorgente.")
             return
         try:
-            subprocess.Popen([sys.executable, script])
+            process = subprocess.Popen([sys.executable, script])
+            
+            # Se è config_editor, abilita il refresh automatico del config
+            if "config_editor" in script:
+                self._monitor_config_editor(process)
+                
         except Exception as e:
             messagebox.showerror("Errore avvio", str(e))
+    
+    def _monitor_config_editor(self, process):
+        """Monitora il processo config_editor per rileggere config.ini alla chiusura"""
+        def check_process():
+            # Controlla se il processo è ancora attivo ogni 2 secondi
+            if process.poll() is not None:
+                # Il processo è terminato, ricarica i moduli extra
+                self._ricarica_moduli_dopo_config()
+            else:
+                # Processo ancora attivo, continua a monitorare
+                self.root.after(2000, check_process)
+        
+        # Inizia il monitoraggio
+        self.root.after(2000, check_process)
+    
+    def _ricarica_moduli_dopo_config(self):
+        """Ricarica i moduli extra dopo la modifica del config.ini"""
+        try:
+            # Forza la rilettura completa del config.ini
+            config = configparser.ConfigParser()
+            config.read(CONFIG_FILE)
+            
+            # Controlla se il tema è cambiato
+            tema_cambiato = False
+            if "UI" in config and "tema" in config["UI"]:
+                nuovo_tema = config["UI"]["tema"].lower()
+                # Carica il tema corrente per confronto
+                tema_corrente = getattr(self, '_tema_corrente', 'scuro')
+                if nuovo_tema != tema_corrente:
+                    tema_cambiato = True
+                    self._tema_corrente = nuovo_tema
+                    print(f"[DEBUG] Tema cambiato da '{tema_corrente}' a '{nuovo_tema}'")
+            
+            # Resetta la cache e ricarica da zero
+            self._moduli_extra_cache = {}
+            
+            # Ricarica i moduli extra dal config aggiornato
+            moduli_extra = {}
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE)
+                if "MODULES" in config:
+                    for chiave, nome_file in config["MODULES"].items():
+                        if chiave not in ["creatore", "records", "editor", "config"]:
+                            # Descrizione generica per moduli extra
+                            descrizione = f"🔧  {chiave.title()}"
+                            moduli_extra[chiave] = (nome_file, descrizione)
+            
+            # Aggiorna la cache con i nuovi dati
+            self._moduli_extra_cache = moduli_extra
+            
+            # Ricostruisci completamente il menu per includere/rimuovere moduli
+            self._ricostruisci_menu()
+            
+            # Forza il ridisegno completo dell'interfaccia grafica
+            self._ridisegna()
+            
+            # Mostra messaggio dettagliato
+            messaggio = f"Il file config.ini è stato modificato.\n"
+            messaggio += f"Moduli extra trovati: {len(moduli_extra)}\n"
+            
+            if tema_cambiato:
+                messaggio += f"\n⚠️ Tema cambiato in '{self._tema_corrente}'.\n"
+                messaggio += "Riavvia l'applicazione per applicare il nuovo tema."
+            else:
+                messaggio += "Menu e badge sono stati aggiornati automaticamente."
+            
+            # Mostra il messaggio solo se non ci sono errori critici
+            if not tema_cambiato:
+                messagebox.showinfo("Configurazione Aggiornata", messaggio)
+            else:
+                # Per cambi tema, mostra un avviso più prominente
+                messagebox.showwarning("Tema Modificato", messaggio)
+            
+        except Exception as e:
+            messagebox.showwarning(
+                "Attenzione", 
+                f"Impossibile ricaricare completamente i moduli:\n{e}\n\n"
+                "Riavvia l'applicazione per vedere tutte le modifiche."
+            )
+    
+    def _ricostruisci_menu(self):
+        """Ricostruisci completamente il menu dei moduli"""
+        try:
+            # Distruggi il menu esistente e ricrealo completamente
+            # Questo garantisce che i moduli rimossi spariscano dal menu
+            self._costruisci_menu()
+        except Exception as e:
+            print(f"Errore ricostruendo menu: {e}")
+            # Fallback: forza un ridisegno completo
+            self._ridisegna()
 
     # ── Info ─────────────────────────────────────────────────────────────────
     def _mostra_info(self):

@@ -1409,16 +1409,49 @@ class ConfigEditor:
         if messagebox.askyesno("Rimuovi Modulo", 
                               f"Rimuovere il modulo '{chiave}'?",
                               parent=self.root):
+            # Rimuovi dalla variabile locale
             del self._var_modules[chiave]
-            # Ricostruisci la sezione
+            
+            # Rimuovi dal config.ini immediatamente
+            try:
+                cfg = carica_config()
+                if "MODULES" in cfg and chiave in cfg["MODULES"]:
+                    del cfg["MODULES"][chiave]
+                    print(f"[DEBUG] Rimosso modulo '{chiave}' dal config.ini")
+                    
+                    # Rimuovi sezione MODULES se vuota
+                    if not cfg["MODULES"]:
+                        del cfg["MODULES"]
+                        print("[DEBUG] Rimossa sezione MODULES vuota")
+                    
+                    # Salva immediatamente il config aggiornato
+                    salva_config(cfg)
+                    print(f"[DEBUG] Config.ini salvato dopo rimozione modulo '{chiave}'")
+                    
+            except Exception as e:
+                print(f"[ERRORE] Rimozione modulo dal config: {e}")
+                messagebox.showerror("Errore", 
+                                   f"Impossibile rimuovere il modulo dal config.ini:\n{e}",
+                                   parent=self.root)
+            
+            # Ricostruisci la sezione UI
             self._modules_frame.destroy()
             self._modules_frame = tk.Frame(self._modules_frame.master, bg=P["bg_panel"])
             self._modules_frame.pack(fill="x")
             
+            # Ricarica la configurazione aggiornata
             moduli_config = self._get_moduli_config()
             for k, (nome_file, descrizione) in moduli_config.items():
-                if k != chiave:  # Salta quello rimosso
+                if k != chiave:  # Salta quello rimosso (doppia sicurezza)
                     self._crea_campo_modulo(self._modules_frame, k, nome_file, descrizione)
+            
+            # Aggiorna stato
+            self._lbl_stato.configure(
+                text=f"  🗑️  Rimosso: {chiave}",
+                fg=P["yellow"])
+            # Reset colore dopo 3 secondi
+            self.root.after(3000, lambda: self._lbl_stato.configure(
+                text=f"  📂  {CONFIG_FILE}", fg=P["fg_dim"]))
 
     # ══════════════════════════════════════════════════════════════════════════
     # BARRA AZIONI
