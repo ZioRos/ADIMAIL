@@ -1069,8 +1069,11 @@ class HamQTHClient:
 # DATABASE
 # ══════════════════════════════════════════════════════════════════════════════
 def init_db():
+    """Inizializza il database QSL Records con struttura completa"""
     conn = sqlite3.connect(DB_FILE)
     c    = conn.cursor()
+    
+    # Crea tabella base se non esiste
     c.execute('''
         CREATE TABLE IF NOT EXISTS qsl_records (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1089,40 +1092,351 @@ def init_db():
             source      TEXT
         )
     ''')
+    
+    # Verifica colonne esistenti
     existing_cols = [row[1] for row in c.execute("PRAGMA table_info(qsl_records)")]
-    for col, col_type in [
+    
+    # Colonne base per compatibilità
+    base_columns = [
         ("name",   "TEXT"),
         ("qth",    "TEXT"),
         ("grid",   "TEXT"),
         ("source", "TEXT"),
-    ]:
+    ]
+    
+    # Colonne QSL moderne
+    qsl_columns = [
+        ("callsign", "TEXT"),
+        ("qsl_date", "TEXT"),
+        ("qsl_time", "TEXT"),
+        ("operator_name", "TEXT"),
+        ("qth", "TEXT"),
+        ("grid_locator", "TEXT"),
+        ("band", "TEXT"),
+        ("mode", "TEXT"),
+        ("comments", "TEXT"),
+        ("qsl_status", "TEXT DEFAULT 'pending'"),
+        ("stato", "TEXT DEFAULT 'non_inviata'"),
+        ("data_invio", "TEXT"),
+        ("rst_sent", "TEXT"),
+        ("rst_received", "TEXT"),
+        ("power", "REAL"),
+        ("frequency_num", "REAL"),
+        ("qsl_file", "TEXT"),
+        ("sent", "TEXT"),
+    ]
+    
+    # Colonne HamQTH
+    hamqth_columns = [
+        ("nick", "TEXT"),
+        ("country", "TEXT"),
+        ("adif", "TEXT"),
+        ("itu", "TEXT"),
+        ("cq", "TEXT"),
+        ("adr_name", "TEXT"),
+        ("adr_street1", "TEXT"),
+        ("adr_city", "TEXT"),
+        ("adr_zip", "TEXT"),
+        ("adr_country", "TEXT"),
+        ("email", "TEXT"),
+        ("lotw", "TEXT"),
+        ("eqsl", "TEXT"),
+        ("qsldirect", "TEXT"),
+        ("latitude", "REAL"),
+        ("longitude", "REAL"),
+        ("continent", "TEXT"),
+        ("utc_offset", "TEXT"),
+        ("picture", "TEXT"),
+        ("iota", "TEXT"),
+        ("qsl_via", "TEXT"),
+    ]
+    
+    # Colonne data/ora alternative
+    datetime_columns = [
+        ("datetime", "TEXT"),
+        ("timestamp", "TEXT"),
+        ("created", "TEXT DEFAULT CURRENT_TIMESTAMP"),
+        ("modified", "TEXT DEFAULT CURRENT_TIMESTAMP"),
+        ("date", "TEXT"),
+        ("time", "TEXT"),
+        ("contact_date", "TEXT"),
+        ("contact_time", "TEXT"),
+        ("qso_date", "TEXT"),
+        ("qso_time", "TEXT"),
+        ("hour", "TEXT"),
+    ]
+    
+    # Colonne callsign alternativi
+    callsign_columns = [
+        ("call", "TEXT"),
+        ("station", "TEXT"),
+        ("station_call", "TEXT"),
+        ("callsign_", "TEXT"),
+    ]
+    
+    # Colonne operatore alternativi
+    operator_columns = [
+        ("name", "TEXT"),
+        ("operator", "TEXT"),
+        ("first_name", "TEXT"),
+        ("op_name", "TEXT"),
+    ]
+    
+    # Colonne posizione alternative
+    location_columns = [
+        ("location", "TEXT"),
+        ("city", "TEXT"),
+        ("address", "TEXT"),
+        ("grid", "TEXT"),
+        ("locator", "TEXT"),
+        ("gridsquare", "TEXT"),
+        ("maidenhead", "TEXT"),
+    ]
+    
+    # Colonne banda/frequenza alternative
+    band_columns = [
+        ("frequency", "TEXT"),
+        ("freq", "TEXT"),
+        ("mhz", "TEXT"),
+        ("khz", "TEXT"),
+    ]
+    
+    # Colonne modalità alternative
+    mode_columns = [
+        ("modulation", "TEXT"),
+        ("mod", "TEXT"),
+    ]
+    
+    # Colonne commenti alternativi
+    comment_columns = [
+        ("comment", "TEXT"),
+        ("notes", "TEXT"),
+        ("remark", "TEXT"),
+        ("description", "TEXT"),
+        ("text", "TEXT"),
+    ]
+    
+    # Colonne stato alternative
+    status_columns = [
+        ("status", "TEXT"),
+        ("state", "TEXT"),
+        ("received", "TEXT"),
+        ("confirmed", "TEXT"),
+    ]
+    
+    # Altri campi utili
+    other_columns = [
+        ("phone", "TEXT"),
+        ("dxcc", "TEXT"),
+        ("cq_zone", "TEXT"),
+        ("itu_zone", "TEXT"),
+        ("county", "TEXT"),
+        ("province", "TEXT"),
+        ("postal_code", "TEXT"),
+        ("web", "TEXT"),
+        ("url", "TEXT"),
+    ]
+    
+    # Unisci tutte le colonne
+    all_columns = (base_columns + qsl_columns + hamqth_columns + datetime_columns + 
+                  callsign_columns + operator_columns + location_columns + 
+                  band_columns + mode_columns + comment_columns + status_columns + 
+                  other_columns)
+    
+    # Aggiungi colonne mancanti
+    added_columns = []
+    for col, col_type in all_columns:
         if col not in existing_cols:
-            c.execute(f"ALTER TABLE qsl_records ADD COLUMN {col} {col_type}")
+            try:
+                c.execute(f"ALTER TABLE qsl_records ADD COLUMN {col} {col_type}")
+                added_columns.append(f"{col} ({col_type})")
+                print(f"[DEBUG] Creatore: Aggiunta colonna {col} {col_type}")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" in str(e):
+                    print(f"[DEBUG] Creatore: Colonna {col} già esistente")
+                else:
+                    print(f"[DEBUG] Creatore: Errore aggiunta colonna {col}: {e}")
+    
+    # Crea indici per performance
+    if added_columns:
+        print("[DEBUG] Creatore: Creazione indici...")
+        try:
+            # Indici principali
+            if "callsign" not in existing_cols or any("callsign" in col for col in added_columns):
+                c.execute("CREATE INDEX IF NOT EXISTS idx_callsign ON qsl_records(callsign)")
+            if "qsl_date" not in existing_cols or any("qsl_date" in col for col in added_columns):
+                c.execute("CREATE INDEX IF NOT EXISTS idx_qsl_date ON qsl_records(qsl_date)")
+            if "stato" not in existing_cols or any("stato" in col for col in added_columns):
+                c.execute("CREATE INDEX IF NOT EXISTS idx_stato ON qsl_records(stato)")
+            if "data_invio" not in existing_cols or any("data_invio" in col for col in added_columns):
+                c.execute("CREATE INDEX IF NOT EXISTS idx_data_invio ON qsl_records(data_invio)")
+            
+            # Indici compositi
+            c.execute("CREATE INDEX IF NOT EXISTS idx_callsign_date ON qsl_records(callsign, qsl_date)")
+            
+            print("[DEBUG] Creatore: Indici creati con successo")
+        except Exception as e:
+            print(f"[DEBUG] Creatore: Errore creazione indici: {e}")
+    
     conn.commit()
     conn.close()
+    
+    # Mostra notifica se ci sono state modifiche
+    if added_columns:
+        print(f"[DEBUG] Creatore: Database aggiornato con {len(added_columns)} nuove colonne")
+        print(f"[DEBUG] Creatore: Colonne aggiunte: {', '.join(added_columns)}")
+
+def ensure_adif_mappings_table():
+    """Ensure adif_mappings table exists"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Check if table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='adif_mappings'")
+        table_exists = cursor.fetchone()
+        
+        if not table_exists:
+            cursor.execute('''
+                CREATE TABLE adif_mappings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    mapping_date TEXT NOT NULL,
+                    db_field TEXT NOT NULL,
+                    adif_field TEXT NOT NULL,
+                    UNIQUE(file_name, db_field)
+                )
+            ''')
+            conn.commit()
+        
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"Error ensuring adif_mappings table: {e}")
+        return False
+
+def load_adif_mappings():
+    """Carica le mappature dei campi ADIF dal database"""
+    try:
+        # Ensure table exists
+        if not ensure_adif_mappings_table():
+            print("Failed to create adif_mappings table")
+            return {}
+        
+        # Try to get active mapping from database
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        
+        if config.has_section('ADIF_SETTINGS') and config.has_option('ADIF_SETTINGS', 'active_mapping_file'):
+            active_file = config.get('ADIF_SETTINGS', 'active_mapping_file')
+            
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT db_field, adif_field 
+                FROM adif_mappings 
+                WHERE file_name = ?
+            ''', (active_file,))
+            
+            mappings = cursor.fetchall()
+            conn.close()
+            
+            return dict(mappings)
+        else:
+            # Fallback to config.ini
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            mappings = {}
+            if config.has_section('ADIF_MAPPINGS'):
+                for option in config.options('ADIF_MAPPINGS'):
+                    value = config.get('ADIF_MAPPINGS', option)
+                    mappings[option] = value
+            return mappings
+            
+    except Exception as e:
+        print(f"Errore caricamento mappature ADIF: {e}")
+        return {}
 
 def insert_record(fields, qsl_file=None, hamqth_data=None, source=None):
-    conn     = sqlite3.connect(DB_FILE)
-    c        = conn.cursor()
-    call     = fields.get("CALL", "")
-    qso_date = fields.get("QSO_DATE", "")
-    time_on  = fields.get("TIME_ON", "")
-    mode     = fields.get("MODE", "")
-    band     = fields.get("BAND", "")
-    rst_sent = fields.get("RST_SENT", "")
-    email    = fields.get("EMAIL") or (hamqth_data.get("email") if hamqth_data else None)
-    name     = hamqth_data.get("nick") if hamqth_data else None
-    qth      = hamqth_data.get("qth")  if hamqth_data else None
-    grid     = hamqth_data.get("grid") if hamqth_data else None
-    c.execute('''
-        INSERT INTO qsl_records
-        (call, qso_date, time_on, mode, band, rst_sent, email, qsl_file, sent,
-         name, qth, grid, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-    ''', (call, qso_date, time_on, mode, band, rst_sent, email, qsl_file,
-          name, qth, grid, source))
-    conn.commit()
-    conn.close()
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
+    # Load custom mappings
+    adif_mappings = load_adif_mappings()
+    
+    # Get CALL from ADIF (map to callsign in new db)
+    call_field = adif_mappings.get('callsign', 'CALL')
+    call = fields.get(call_field, "").upper().strip()
+    if not call:
+        print(f"[DEBUG] ERRORE: {call_field} mancante nei campi ADIF: {fields.keys()}")
+        conn.close()
+        return False
+    
+    # Map ADIF fields using custom mappings
+    def get_field(db_field, default_adif):
+        adif_field = adif_mappings.get(db_field, default_adif)
+        return fields.get(adif_field, "")
+    
+    qso_date = get_field('qsl_date', 'QSO_DATE')
+    time_on = get_field('time_on', 'TIME_ON')
+    mode = get_field('mode', 'MODE')
+    band = get_field('band', 'BAND')
+    rst_sent = get_field('rst_sent', 'RST_SENT')
+    email_adif = adif_mappings.get('email', 'EMAIL')
+    
+    # Get data from HamQTH if available
+    email = fields.get(email_adif) or (hamqth_data.get("email") if hamqth_data else None)
+    name = hamqth_data.get("nick") if hamqth_data else None
+    qth = hamqth_data.get("qth") if hamqth_data else None
+    grid = hamqth_data.get("grid") if hamqth_data else None
+    
+    # Build dynamic query with available columns
+    columns = ['callsign', 'call', 'qsl_date', 'qso_date', 'qsl_time', 'time_on', 
+               'operator_name', 'name', 'qth', 'grid_locator', 'grid', 'band', 'mode', 
+               'comments', 'rst_sent', 'email', 'qsl_file', 'stato', 'qsl_status', 'source']
+    
+    values = [
+        call,                    # callsign (NOT NULL)
+        call,                    # call (legacy)
+        qso_date,                # qsl_date
+        qso_date,                # qso_date (legacy)
+        time_on,                 # qsl_time
+        time_on,                 # time_on (legacy)
+        name or "",              # operator_name
+        name or "",              # name (legacy)
+        qth or "",               # qth
+        grid or "",              # grid_locator
+        grid or "",              # grid (legacy)
+        band or "",              # band
+        mode or "",              # mode
+        "",                      # comments
+        rst_sent or "",          # rst_sent
+        email or "",             # email
+        qsl_file or "",          # qsl_file
+        'non_inviata',           # stato
+        'pending',               # qsl_status
+        source or ""             # source
+    ]
+    
+    placeholders = ', '.join(['?' for _ in columns])
+    query = f"INSERT INTO qsl_records ({', '.join(columns)}) VALUES ({placeholders})"
+    
+    try:
+        c.execute(query, values)
+        conn.commit()
+        print(f"[DEBUG] Record inserito: {call}")
+        conn.close()
+        return True
+    except sqlite3.IntegrityError as e:
+        print(f"[DEBUG] ERRORE INSERT: {call} - {e}")
+        conn.close()
+        return False
+    except Exception as e:
+        print(f"[DEBUG] ERRORE GENERICO: {call} - {e}")
+        conn.close()
+        return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1270,7 +1584,12 @@ def process_single_adif(filepath, source_label, pw, hamqth,
 
     for i, record in enumerate(valid_records):
         fields = parse_adif_record(record)
-        call   = fields.get("CALL", "").upper()
+        call   = fields.get("CALL", "").upper().strip()
+        
+        # Skip records without CALL
+        if not call:
+            pw.log(f"   ⚠️  Record {i+1} saltato: CALL mancante")
+            continue
 
         pw.set_status(f"[{source_label}] {i+1}/{total} — {call}")
         pw.set_progress(i + 1, total)
@@ -1312,8 +1631,11 @@ def process_single_adif(filepath, source_label, pw, hamqth,
             qsl_path = None
             pw.log("   🚫 Nessuna email — QSL non generata.")
 
-        insert_record(fields, qsl_file=qsl_path,
+        # Insert record and check result
+        inserted = insert_record(fields, qsl_file=qsl_path,
                       hamqth_data=hamqth_data, source=source_label)
+        if not inserted:
+            pw.log(f"   ❌ Errore inserimento record: {call}")
 
         # Aggiorna contatori cumulativi UI
         global_counter["total"]     += (1 if email else 0)
@@ -1414,45 +1736,75 @@ def process_adif_sources(sorgenti, pw):
 # GUI / MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
-    root = Tk()
-    root.withdraw()
+    try:
+        # Initialize adif_mappings table if needed
+        ensure_adif_mappings_table()
+        
+        root = Tk()
+        root.withdraw()
 
-    def avvia_importazione(sorgenti):
-        """Callback richiamato da SourceSelectionWindow con la lista sorgenti."""
-        pw            = ProgressWindow(root)
-        result_holder = {}
+        def avvia_importazione(sorgenti):
+            """Callback richiamato da SourceSelectionWindow con la lista sorgenti."""
+            pw            = ProgressWindow(root)
+            result_holder = {}
 
-        def run():
-            try:
-                summary = process_adif_sources(sorgenti, pw)
-                result_holder["summary"] = summary
-                result_holder["error"]   = None
-            except Exception as e:
-                result_holder["summary"] = None
-                result_holder["error"]   = str(e)
-                pw.log(f"❌ Errore critico: {e}")
-                pw.close()
+            def run():
+                try:
+                    summary = process_adif_sources(sorgenti, pw)
+                    result_holder["summary"] = summary
+                    result_holder["error"]   = None
+                except Exception as e:
+                    result_holder["summary"] = None
+                    result_holder["error"]   = str(e)
+                    pw.log(f"❌ Errore critico: {e}")
+                    pw.close()
 
-        thread = threading.Thread(target=run, daemon=True)
-        thread.start()
+            thread = threading.Thread(target=run, daemon=True)
+            thread.start()
 
-        while thread.is_alive():
+            while thread.is_alive():
+                root.update()
+                time.sleep(0.05)
+
             root.update()
-            time.sleep(0.05)
 
-        root.update()
+            if result_holder.get("error"):
+                messagebox.showerror("Errore", result_holder["error"])
+            elif result_holder.get("summary"):
+                messagebox.showinfo("Completato", result_holder["summary"])
 
-        if result_holder.get("error"):
-            messagebox.showerror("Errore", result_holder["error"])
-        elif result_holder.get("summary"):
-            messagebox.showinfo("Completato", result_holder["summary"])
+            root.destroy()
 
-        root.destroy()
+        def apri_mapper():
+            """Apre il tool di mappatura campi ADIF"""
+            try:
+                import adif_mapping_manager
+                mapper_root = tk.Toplevel(root)
+                mapper_root.title("ADIF Mapping Manager")
+                adif_mapping_manager.ADIFMappingManager(mapper_root)
+            except ImportError:
+                messagebox.showerror("Errore", "Modulo adif_mapping_manager.py non trovato")
+            except Exception as e:
+                messagebox.showerror("Errore", f"Impossibile aprire il mapping manager: {e}")
 
-    # Apri la finestra di selezione sorgenti
-    SourceSelectionWindow(root, on_import_callback=avvia_importazione)
-
-    root.mainloop()
+        # Pulsanti principali
+        button_frame = ttk.Frame(root)
+        button_frame.pack(pady=20)
+        
+        ttk.Button(button_frame, text="📂 Importa ADIF", command=lambda: SourceSelectionWindow(root, on_import_callback=avvia_importazione)).pack(side=tk.LEFT, padx=10)
+        ttk.Button(button_frame, text="🗺️ Mappa Campi ADIF", command=apri_mapper).pack(side=tk.LEFT, padx=10)
+        ttk.Button(button_frame, text="❌ Esci", command=root.destroy).pack(side=tk.LEFT, padx=10)
+        
+        # Show the window
+        root.deiconify()
+        root.lift()
+        root.focus_force()
+        root.mainloop()
+        
+    except Exception as e:
+        messagebox.showerror("Errore Critico", f"Impossibile avviare il programma: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
